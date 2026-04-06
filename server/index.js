@@ -117,6 +117,59 @@ function cleanText(s) {
     .trim()
 }
 
+// 后处理：清除残留AI腔
+function deAI(s) {
+  const replacements = [
+    // 禁用连接词
+    [/总的来说[，,]?/g, ''],
+    [/总而言之[，,]?/g, ''],
+    [/综上所述[，,]?/g, ''],
+    [/值得注意的是[，,]?/g, ''],
+    [/值得关注的是[，,]?/g, ''],
+    [/值得一提的是[，,]?/g, ''],
+    [/显而易见[，,]?/g, ''],
+    [/毫无疑问[，,]?/g, ''],
+    [/不可否认[，,]?/g, '确实'],
+    [/据了解[，,]?/g, ''],
+    [/据悉[，,]?/g, ''],
+    [/众所周知[，,]?/g, ''],
+    [/总之[，,]?/g, '所以'],
+    [/然而[，,]?/g, '但'],
+    [/此外[，,]?/g, '另外'],
+    [/因此[，,]?/g, '所以'],
+    // 禁用句式
+    [/不仅仅是/g, '不只是'],
+    [/不仅如此/g, '而且'],
+    [/这不仅/g, '这'],
+    [/不仅提升/g, '提升'],
+    [/不仅让/g, '让'],
+    [/具有重要意义/g, '很关键'],
+    [/具有里程碑意义/g, '是个大节点'],
+    [/让我们拭目以待/g, '后续再看'],
+    [/未来可期/g, ''],
+    [/更贴心的是[，,]?/g, ''],
+    [/这标志着/g, '这说明'],
+    [/这意味着/g, '也就是说'],
+    [/这表明/g, '说明'],
+    [/旨在/g, '就是为了'],
+    [/赋能/g, '帮助'],
+    [/助力/g, '帮'],
+    [/深耕/g, '专注'],
+    // 清理方括号标记
+    [/\[之前\]/g, '之前'],
+    [/\[现在\]/g, '现在'],
+    [/\[所以\]/g, '所以'],
+    // 清理空行
+    [/\n{3,}/g, '\n\n'],
+  ]
+
+  let result = s
+  for (const [pattern, replacement] of replacements) {
+    result = result.replace(pattern, replacement)
+  }
+  return result.trim()
+}
+
 // ============ 风格列表 ============
 app.get('/api/styles', (req, res) => {
   res.json(STYLE_META)
@@ -209,8 +262,9 @@ app.post('/api/generate', async (req, res) => {
       throw new Error('AI返回格式不正确')
     }
 
-    result.content = cleanText(result.content)
+    result.content = deAI(cleanText(result.content))
     result.coverPrompt = cleanText(result.coverPrompt)
+    result.summary = deAI(result.summary)
 
     res.json(result)
   } catch (err) {
