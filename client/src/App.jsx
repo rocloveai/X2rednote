@@ -100,10 +100,26 @@ export default function App() {
     }
   }
 
+  // 对比原始简报和编辑后简报，找出修改了哪些字段
+  const getEditedFields = () => {
+    if (!briefing || !editableBriefing) return []
+    const changed = []
+    for (const key of ['oneLiner', 'whyNow', 'whyItMatters', 'context', 'suggestedAngle']) {
+      if ((editableBriefing[key] || '') !== (briefing[key] || '')) {
+        changed.push(key)
+      }
+    }
+    const origPoints = JSON.stringify(briefing.keyPoints || [])
+    const editPoints = JSON.stringify(editableBriefing.keyPoints || [])
+    if (origPoints !== editPoints) changed.push('keyPoints')
+    return changed
+  }
+
   // Step 2: 生成文案
   const handleGenerate = async (overrideStyle) => {
     if (!editableBriefing) return
     const useStyle = overrideStyle || style
+    const editedFields = getEditedFields()
     setLoadingGenerate(true)
     setError('')
     setResult(null)
@@ -112,7 +128,11 @@ export default function App() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ briefing: editableBriefing, style: useStyle })
+        body: JSON.stringify({
+          briefing: editableBriefing,
+          style: useStyle,
+          editedFields: editedFields.length > 0 ? editedFields : undefined
+        })
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))

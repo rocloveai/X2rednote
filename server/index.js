@@ -243,7 +243,7 @@ app.post('/api/briefing', async (req, res) => {
 
 // ============ Step 2 API: 文案生成 ============
 app.post('/api/generate', async (req, res) => {
-  const { briefing, style = 'news' } = req.body
+  const { briefing, style = 'news', editedFields } = req.body
 
   if (!briefing) {
     return res.status(400).json({ error: '请先完成素材整理' })
@@ -253,8 +253,8 @@ app.post('/api/generate', async (req, res) => {
   }
 
   try {
-    console.log('Agent 2: 文案创作...')
-    const agent2Messages = buildAgent2Messages(briefing, style)
+    console.log('Agent 2: 文案创作...', editedFields ? `(用户修改了: ${editedFields.join(', ')})` : '')
+    const agent2Messages = buildAgent2Messages(briefing, style, editedFields)
     const agent2Raw = await callQwen(agent2Messages, { temperature: 0.7 })
     const result = JSON.parse(agent2Raw)
 

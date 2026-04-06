@@ -224,12 +224,29 @@ export function buildAgent1Messages(sources, background) {
   ]
 }
 
-export function buildAgent2Messages(briefing, style) {
+const FIELD_NAMES = {
+  oneLiner: '一句话总结',
+  whyNow: '为什么是现在',
+  whyItMatters: '为什么值得关注',
+  keyPoints: '核心信息点',
+  context: '补充背景',
+  suggestedAngle: '叙述角度'
+}
+
+export function buildAgent2Messages(briefing, style, editedFields) {
   const templateFn = STYLE_USER_TEMPLATES[style] || STYLE_USER_TEMPLATES.flash
   const briefingJSON = JSON.stringify(briefing, null, 2)
 
+  let userContent = templateFn(briefingJSON)
+
+  // 如果用户修改过简报，强调修改的部分
+  if (editedFields && editedFields.length > 0) {
+    const fieldLabels = editedFields.map(f => FIELD_NAMES[f] || f).join('、')
+    userContent += `\n\n⚠️ 重要：作者手动修改了简报中的【${fieldLabels}】部分，这代表作者的明确意图。你的文案必须重点体现这些修改后的内容，不要忽略。`
+  }
+
   return [
     { role: 'system', content: AGENT2_SYSTEM },
-    { role: 'user', content: templateFn(briefingJSON) }
+    { role: 'user', content: userContent }
   ]
 }
