@@ -51,17 +51,20 @@ async function callQwen(messages, { temperature = 0.7, jsonMode = true, maxToken
   return content
 }
 
-// Step 0: Extract search queries — 事件本身 + 触发背景
+// Step 0: Extract search queries — 事件本身 + 触发背景(如果有)
 async function extractSearchQueries(text) {
   try {
     const content = await callQwen([
       {
         role: 'system',
-        content: `分析用户内容，提取两个英文搜索查询词：
-1. event_query: 这件事本身是什么（产品/事件/技术名称）
-2. context_query: 这件事背后的触发原因或行业背景（为什么现在发生？是因为什么行业趋势、竞争对手动作、政策变化？）
+        content: `分析用户内容，提取搜索查询词。
 
-输出JSON: {"event_query": "...", "context_query": "..."}`
+1. event_query: 这件事本身（产品名/事件名/技术名）
+2. context_query: 只有当内容明确暗示有外部触发事件时才填（比如"因为XX所以做了YY"，或者明显是在回应行业事件）。如果只是一个产品发布/开源项目/普通新闻，context_query设为null。
+
+判断标准：内容里有没有提到"因为""回应""受到XX影响"这类因果关系？如果没有，context_query就是null。
+
+输出JSON: {"event_query": "...", "context_query": "..."或null}`
       },
       { role: 'user', content: text.slice(0, 800) }
     ], { temperature: 0.3, jsonMode: true, maxTokens: 150 })
@@ -93,17 +96,22 @@ async function searchExa(query, options = {}) {
   }
 }
 
-// 两轮搜索：事件 + 触发背景
+// 搜索：事件本身 + 触发背景(如果有)
 async function searchAllBackground(queries) {
   if (!exa || !queries) return { event: null, context: null }
 
-  // 两轮并行搜索
-  const [eventBg, contextBg] = await Promise.all([
-    searchExa(queries.event_query, { numResults: 3, days: 7 }),
-    searchExa(queries.context_query, { numResults: 3, days: 30 })
-  ])
+  const searches = [searchExa(queries.event_query, { numResults: 3, days: 7 })]
 
-  return { event: eventBg, context: contextBg }
+  // 只有context_query不为null才搜第二轮
+  if (queries.context_query) {
+    searches.push(searchExa(queries.context_query, { numResults: 3, days: 30 }))
+  }
+
+  const results = await Promise.all(searches)
+  return {
+    event: results[0],
+    context: results[1] || null
+  }
 }
 
 // Clean text helper
@@ -155,6 +163,22 @@ function deAI(s) {
     [/赋能/g, '帮助'],
     [/助力/g, '帮'],
     [/深耕/g, '专注'],
+    // 更多AI腔
+    [/更厉害的是[，,]?/g, ''],
+    [/更重要的是[，,]?/g, ''],
+    [/更关键的是[，,]?/g, ''],
+    [/更有意思的是[，,]?/g, ''],
+    [/你知道吗[？?]/g, ''],
+    [/你有没有想过[，,]?/g, ''],
+    [/想象一下[，,]?/g, ''],
+    [/也许[，,]这才是/g, '这可能就是'],
+    [/在当今.*?时代[，,]?/g, ''],
+    [/应运而生/g, '出来了'],
+    [/前所未有/g, ''],
+    [/提供了新的可能性[。.]?/g, ''],
+    [/为.*?提供了新的.*?[。.]/g, ''],
+    [/不仅解决了/g, '解决了'],
+    [/不仅改变了/g, '改变了'],
     // 清理方括号标记
     [/\[之前\]/g, '之前'],
     [/\[现在\]/g, '现在'],
